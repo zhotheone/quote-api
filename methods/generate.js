@@ -364,8 +364,8 @@ module.exports = async (parm) => {
 
     // A short quote would be upscaled to fill 512px and look gigantic next to
     // a long one. Pad it with transparent space on the right (content stays
-    // left-aligned, like a chat) so the upscale never exceeds ~1.3x.
-    const minLogicalWidth = Math.round(maxWidth / 1.3)
+    // left-aligned, like a chat) so the upscale never exceeds ~2x.
+    const minLogicalWidth = Math.round(maxWidth / 2)
     let stickerSource = canvasQuote
     if (canvasQuote.height <= canvasQuote.width && canvasQuote.width < minLogicalWidth * scale) {
       stickerSource = createCanvas(minLogicalWidth * scale, canvasQuote.height)
