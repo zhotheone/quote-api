@@ -22,6 +22,7 @@ const { NAME_COLORS_LIGHT, NAME_COLORS_DARK } = require('./constants')
 const { getStyle } = require('./styles')
 const { drawCard, drawTopicLine, drawStoryRing } = require('./cards')
 const { drawRich } = require('./rich')
+const { drawReactions } = require('./reactions')
 
 async function loadFonts () {
   const fontsDir = path.resolve(__dirname, '../../assets/fonts/')
@@ -414,6 +415,11 @@ class QuoteGenerate {
       viaBotCanvas = drawLabel(viaText, style.fonts.micro * scale, nameColor, { alpha: 0.8 })
     }
 
+    // Reaction pills under the content (bot-tracked: the Bot API doesn't expose them on messages)
+    const reactionsCanvas = Array.isArray(message.reactions) && message.reactions.length
+      ? await drawReactions(message.reactions, { size: style.fonts.name * scale, color: textColor, accent: nameColor, maxWidth: width, emojiBrand, telegram: this.telegram })
+      : null
+
     // Nothing to render — skip this message
     if (!textCanvas && !nameCanvas && !mediaCanvas && !replyData && !attachment) {
       return null
@@ -429,6 +435,7 @@ class QuoteGenerate {
       textBlocks,
       media: mediaCanvas ? { canvas: mediaCanvas, type: mediaType, maxSize: maxMediaSize, badge: mediaBadge } : null,
       attachment: attachment ? { canvas: attachment } : null,
+      reactions: reactionsCanvas,
       isForward,
       forwardLabel,
       nameColor,

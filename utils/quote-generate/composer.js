@@ -27,6 +27,7 @@ function drawQuote (options) {
     textBlocks, // [{ canvas, quote: bool }] — text split around blockquote entities
     media,
     attachment, // pre-rendered in-bubble row canvas (voice/document/audio)
+    reactions, // pre-rendered reaction pills row (reactions.js) or null
     isForward,
     forwardLabel,
     nameColor,
@@ -282,7 +283,7 @@ function drawQuote (options) {
       pad: mediaOnly ? 0 : bubblePad,
       minW: mediaOnly ? 0 : s(P.minWidth),
       bg: bubbleBg,
-      children: [headerNode, forwardNode, replyNode, mediaNode, attachmentNode, textNode]
+      children: [headerNode, forwardNode, replyNode, mediaNode, attachmentNode, textNode, reactions ? leaf(reactions, { trim: false }) : null]
     })
   }
 
