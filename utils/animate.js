@@ -25,18 +25,21 @@ async function animateQuote (staticImage, rect, video) {
   const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${roundedRect(rect)}"/></svg>`)
   const overlay = await sharp(staticImage).ensureAlpha().composite([{ input: svg, blend: 'dest-out' }]).png().toBuffer()
 
+  // Video may only show inside the bubble: its silhouette is the static image's alpha.
+  const mask = await sharp(staticImage).ensureAlpha().extractChannel('alpha').threshold(128).png().toBuffer()
+
   const id = crypto.randomBytes(8).toString('hex')
-  const [vf, of, out] = ['v', 'o.png', 'out.webm'].map((n) => path.join(os.tmpdir(), `quote-anim-${id}-${n}`))
+  const [vf, of, mf, out] = ['v', 'o.png', 'm.png', 'out.webm'].map((n) => path.join(os.tmpdir(), `quote-anim-${id}-${n}`))
   const w = Math.round(rect.w); const h = Math.round(rect.h)
   const graph = `[0:v]fps=24,scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},format=yuva420p[v];` +
     `color=c=black@0:s=${W}x${H}:r=24,format=yuva420p[bg];` +
     `[bg][v]overlay=${Math.round(rect.x)}:${Math.round(rect.y)}:shortest=1:format=auto[a];` +
-    `[a][1:v]overlay=0:0:shortest=1:format=auto,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuva420p`
+    `[2:v]format=gray[m];[a]format=yuva420p[a2];[a2][m]alphamerge[c];[c][1:v]overlay=0:0:shortest=1:format=auto,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuva420p`
   try {
-    await Promise.all([fs.promises.writeFile(vf, video), fs.promises.writeFile(of, overlay)])
+    await Promise.all([fs.promises.writeFile(vf, video), fs.promises.writeFile(of, overlay), fs.promises.writeFile(mf, mask)])
     for (const crf of CRF_LADDER) {
       await promisify(execFile)('ffmpeg', [
-        '-y', '-i', vf, '-loop', '1', '-framerate', '24', '-i', of, '-filter_complex', graph,
+        '-y', '-i', vf, '-loop', '1', '-framerate', '24', '-i', of, '-loop', '1', '-framerate', '24', '-i', mf, '-filter_complex', graph,
         '-t', '3', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', String(crf),
         '-auto-alt-ref', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', out
       ], { timeout: 60000 })
@@ -45,7 +48,7 @@ async function animateQuote (staticImage, rect, video) {
     }
     throw new Error('animated quote exceeds 256KB')
   } finally {
-    for (const f of [vf, of, out]) fs.unlink(f, () => {})
+    for (const f of [vf, of, mf, out]) fs.unlink(f, () => {})
   }
 }
 
