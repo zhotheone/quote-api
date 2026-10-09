@@ -112,7 +112,7 @@ function drawQuote (options) {
 
   // Media-only bubbles (photo with no caption/name/reply) are pure media:
   // the photo IS the bubble, rounded with the bubble radius.
-  const mediaOnly = !!mediaCanvas && !nameCanvas && !text && !reply && !forwardLabel && !attachment
+  const mediaOnly = !!mediaCanvas && !nameCanvas && !text && !reply && !forwardLabel && !attachment && !reactions
 
   // Grouped bubbles flatten the left corners that face their neighbours
   // (styles with uniform corners keep them round).
@@ -129,7 +129,7 @@ function drawQuote (options) {
   // below (or no header above) the bubble padding on that side collapses and
   // the media corners inherit the bubble's own radii.
   const isRound = mediaType === 'video_note' // round video — circular mask
-  const hasCaption = Boolean(text) || (Array.isArray(textBlocks) && textBlocks.length > 0) || Boolean(attachment)
+  const hasCaption = Boolean(reactions) || Boolean(text) || (Array.isArray(textBlocks) && textBlocks.length > 0) || Boolean(attachment)
   const flushable = !!mediaCanvas && !mediaOnly && !isSticker && !isRound
   const flushBottom = flushable && !hasCaption
   const flushTop = flushable && !nameCanvas && !(isForward && forwardLabel) && !reply
