@@ -14,7 +14,7 @@ async function drawReactions (reactions, { size, color, accent, maxWidth, emojiB
   let rowW = 0
   for (const r of reactions.slice(0, 8)) {
     const glyph = r.custom_emoji_id ? '🤡' : r.emoji // placeholder under a custom_emoji entity
-    const label = r.count > 1 ? `${glyph} ${r.count}` : glyph
+    const label = `${glyph} ${r.count}` // always show the count, even for 1
     const entities = r.custom_emoji_id ? [{ type: 'custom_emoji', offset: 0, length: 2, custom_emoji_id: r.custom_emoji_id }] : []
     const text = await drawMultilineText(label, entities, size, color, 0, size, maxWidth, size * 2, emojiBrand, telegram).catch(() => null)
     if (!text || text.width <= 1) continue
