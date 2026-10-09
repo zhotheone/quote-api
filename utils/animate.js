@@ -19,6 +19,19 @@ function roundedRect ({ x, y, w, h, radii: r }) {
     `V${y + r.tl} A${r.tl},${r.tl} 0 0 1 ${x + r.tl},${y} Z`
 }
 
+// Playable length of the video's first stream in seconds (null if unknown). The still inputs
+// loop forever, so the graph can't tell where the video ends: the output is capped to this instead.
+async function videoSeconds (file) {
+  try {
+    const { stdout } = await promisify(execFile)('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=duration:format=duration', '-of', 'json', file], { timeout: 10000 })
+    const j = JSON.parse(stdout)
+    const d = Number(j.streams?.[0]?.duration ?? j.format?.duration)
+    return d > 0 ? d : null
+  } catch (_) {
+    return null
+  }
+}
+
 // staticImage: final sticker image buffer; rect: media rect in its pixels; video: source buffer.
 async function animateQuote (staticImage, rect, video) {
   // yuv420 needs even dimensions: trim an odd last row/column so every layer agrees.
@@ -35,16 +48,18 @@ async function animateQuote (staticImage, rect, video) {
   const id = crypto.randomBytes(8).toString('hex')
   const [vf, of, mf, out] = ['v', 'o.png', 'm.png', 'out.webm'].map((n) => path.join(os.tmpdir(), `quote-anim-${id}-${n}`))
   const w = Math.round(rect.w); const h = Math.round(rect.h)
-  const graph = `[0:v]fps=24,scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},format=yuva420p[v];` +
+  const graph = `[0:v]setpts=PTS-STARTPTS,fps=24,scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},format=yuva420p[v];` +
     `color=c=black@0:s=${W}x${H}:r=24,format=yuva420p[bg];` +
-    `[bg][v]overlay=${Math.round(rect.x)}:${Math.round(rect.y)}:shortest=1:format=auto[a];` +
+    `[bg][v]overlay=${Math.round(rect.x)}:${Math.round(rect.y)}:eof_action=endall:format=auto[a];` +
     `[2:v]format=gray[m];[a]format=yuva420p[a2];[a2][m]alphamerge[c];[c][1:v]overlay=0:0:shortest=1:format=auto,scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuva420p`
   try {
     await Promise.all([fs.promises.writeFile(vf, video), fs.promises.writeFile(of, overlay), fs.promises.writeFile(mf, mask)])
+    // Exactly the video's length (≤3s) so the sticker loops with no frozen tail.
+    const seconds = Math.min(3, (await videoSeconds(vf)) ?? 3)
     for (const crf of CRF_LADDER) {
       await promisify(execFile)('ffmpeg', [
         '-y', '-i', vf, '-loop', '1', '-framerate', '24', '-i', of, '-loop', '1', '-framerate', '24', '-i', mf, '-filter_complex', graph,
-        '-t', '3', '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', String(crf),
+        '-t', seconds.toFixed(3), '-an', '-c:v', 'libvpx-vp9', '-pix_fmt', 'yuva420p', '-b:v', '0', '-crf', String(crf),
         '-auto-alt-ref', '0', '-row-mt', '1', '-deadline', 'good', '-cpu-used', '4', out
       ], { timeout: 60000 })
       const buf = await fs.promises.readFile(out)
