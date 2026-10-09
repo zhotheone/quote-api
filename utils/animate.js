@@ -21,7 +21,11 @@ function roundedRect ({ x, y, w, h, radii: r }) {
 
 // staticImage: final sticker image buffer; rect: media rect in its pixels; video: source buffer.
 async function animateQuote (staticImage, rect, video) {
-  const { width: W, height: H } = await sharp(staticImage).metadata()
+  // yuv420 needs even dimensions: trim an odd last row/column so every layer agrees.
+  const meta = await sharp(staticImage).metadata()
+  const W = meta.width & ~1
+  const H = meta.height & ~1
+  staticImage = await sharp(staticImage).extract({ left: 0, top: 0, width: W, height: H }).toBuffer()
   const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><path d="${roundedRect(rect)}"/></svg>`)
   const overlay = await sharp(staticImage).ensureAlpha().composite([{ input: svg, blend: 'dest-out' }]).png().toBuffer()
 
