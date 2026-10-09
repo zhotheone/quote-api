@@ -6,6 +6,8 @@ const { parseBackgroundColor, lightOrDark, hexToHsl, hslToHex, hexToRgb } = requ
 const { brands: emojiBrands } = require('../utils/emoji-image')
 const { SP } = require('../utils/quote-generate/composer')
 const { getStyle } = require('../utils/quote-generate/styles')
+const { animateQuote } = require('../utils/animate')
+const loadImageFromUrl = require('../utils/image-load-url')
 
 const ALLOWED_EMOJI_BRANDS = new Set(Object.keys(emojiBrands))
 
@@ -309,6 +311,11 @@ module.exports = async (parm) => {
   }
 
   let canvasQuote
+  // First quote with an animated media: its file id and rect (stack coordinates).
+  let anim = null
+  const trackAnim = (img, y) => {
+    if (!anim && parm.animate && img.mediaVideo) anim = { fileId: img.mediaVideo, rect: { ...img.mediaRect, y: img.mediaRect.y + y } }
+  }
 
   if (filteredImages.length > 1) {
     let width = 0
@@ -340,14 +347,17 @@ module.exports = async (parm) => {
     let imageY = 0
     for (let index = 0; index < filteredImages.length; index++) {
       canvasCtx.drawImage(filteredImages[index], 0, imageY)
+      trackAnim(filteredImages[index], imageY)
       imageY += filteredImages[index].height + (margins[index] || 0)
     }
     canvasQuote = canvas
   } else {
     canvasQuote = filteredImages[0]
+    trackAnim(canvasQuote, 0)
   }
 
   let quoteImage
+  let quoteScale = 1 // stack px → output px (quote type only)
 
   let { type, format, ext } = parm
 
@@ -373,6 +383,7 @@ module.exports = async (parm) => {
     }
 
     const imageQuoteSharp = sharp(stickerSource.toBuffer())
+    let factor = stickerSource.height > stickerSource.width ? maxHeight / stickerSource.height : maxWidth / stickerSource.width
 
     if (stickerSource.height > stickerSource.width) imageQuoteSharp.resize({ height: maxHeight })
     else imageQuoteSharp.resize({ width: maxWidth })
@@ -384,6 +395,8 @@ module.exports = async (parm) => {
     canvasPaddingCtx.drawImage(canvasImage, 0, 0)
 
     const imageSharp = sharp(canvasPadding.toBuffer())
+    factor *= canvasPadding.height >= canvasPadding.width ? maxHeight / canvasPadding.height : maxWidth / canvasPadding.width
+    quoteScale = factor
 
     if (canvasPadding.height >= canvasPadding.width) imageSharp.resize({ height: maxHeight })
     else imageSharp.resize({ width: maxWidth })
@@ -481,9 +494,24 @@ module.exports = async (parm) => {
     height = canvasQuote.height
   }
 
+  let animated = false
+  if (anim && type === 'quote' && format !== 'png') {
+    // Best-effort: any failure (download, ffmpeg, >256KB) keeps the static sticker.
+    try {
+      const r = anim.rect
+      const k = quoteScale
+      const rect = { x: r.x * k, y: r.y * k, w: r.w * k, h: r.h * k, radii: Object.fromEntries(Object.entries(r.radii).map(([c, v]) => [c, v * k])) }
+      const video = await loadImageFromUrl(await quoteGenerate.telegram.getFileLink(anim.fileId))
+      quoteImage = await animateQuote(quoteImage, rect, video)
+      animated = true
+    } catch (error) {
+      console.warn('Animated quote failed, sending static:', error.message)
+    }
+  }
+
   let image
   if (ext) image = quoteImage
   else image = quoteImage.toString('base64')
 
-  return { image, type, width, height, ext }
+  return { image, type, width, height, ext, animated }
 }

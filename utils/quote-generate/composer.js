@@ -134,6 +134,7 @@ function drawQuote (options) {
   const flushTop = flushable && !nameCanvas && !(isForward && forwardLabel) && !reply
 
   let mediaNode = null
+  let mediaRect = null // where the media landed, for the animated-sticker overlay
   if (mediaCanvas) {
     const maxMediaSize = media.maxSize
     let mediaWidth = mediaCanvas.width * (maxMediaSize / mediaCanvas.height)
@@ -157,6 +158,8 @@ function drawQuote (options) {
       w: isRound ? Math.min(mediaWidth, mediaHeight) : mediaWidth,
       h: isRound ? Math.min(mediaWidth, mediaHeight) : mediaHeight,
       paint: (ctx, n) => {
+        const rr = isRound ? { tl: n.w / 2, tr: n.w / 2, br: n.w / 2, bl: n.w / 2 } : typeof mediaRadius === 'number' ? { tl: mediaRadius, tr: mediaRadius, br: mediaRadius, bl: mediaRadius } : mediaRadius
+        mediaRect = { x: n.x, y: n.y, w: n.w, h: n.h, radii: rr }
         ctx.save()
         ctx.imageSmoothingEnabled = true
         ctx.imageSmoothingQuality = 'high'
@@ -299,6 +302,7 @@ function drawQuote (options) {
   const canvas = createCanvas(width, height)
   const ctx = canvas.getContext('2d')
   render(ctx, root)
+  canvas.mediaRect = mediaRect
 
   // Visible-bounds metadata for tests/tools: bubble rect and the box the eye
   // reads as its content (first/last in-flow child edges), canvas px.

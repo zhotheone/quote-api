@@ -419,7 +419,7 @@ class QuoteGenerate {
       return null
     }
 
-    return drawQuote({
+    const quote = drawQuote({
       scale,
       background: { colorOne: backgroundColorOne, colorTwo: backgroundColorTwo, textColor },
       avatar: avatarCanvas,
@@ -440,6 +440,8 @@ class QuoteGenerate {
       isQuote: !!message.isQuote,
       style
     })
+    if (message.mediaVideo && mediaCanvas && quote.mediaRect) quote.mediaVideo = message.mediaVideo
+    return quote
   }
 }
 
